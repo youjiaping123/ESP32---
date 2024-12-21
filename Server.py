@@ -9,6 +9,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 import threading
 from queue import Queue
+import hashlib
+from pathlib import Path
 
 load_dotenv()
 
@@ -27,6 +29,11 @@ class VoiceAIChatbot:
         self.client_sessions = {}
         self.executor = ThreadPoolExecutor(max_workers=10)
         self.message_queue = Queue()
+        
+        # 在初始化时添加音频文件存储路径配置
+        self.audio_dir = Path("static/audio")
+        self.audio_dir.mkdir(parents=True, exist_ok=True)
+        self.base_url = os.getenv("AUDIO_BASE_URL", "http://localhost:8080/static/audio")
         
         # 启动消息处理线程
         self.processing_thread = threading.Thread(target=self.process_messages)
@@ -79,7 +86,7 @@ class VoiceAIChatbot:
             log(f"处理识别结果出错: {str(e)}")
 
     def text_to_speech(self, text, client_id):
-        """语音合成"""
+        """语音合成并返回音频URL"""
         try:
             speech_config = speechsdk.SpeechConfig(
                 subscription=os.getenv('SPEECH_KEY'), 
@@ -98,15 +105,27 @@ class VoiceAIChatbot:
             result = synthesizer.speak_text_async(text).get()
             
             if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-                wav_stream = io.BytesIO()
-                with wave.open(wav_stream, 'wb') as wav_file:
+                # 生成带时间戳的文件名
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                # 生成短的随机字符串
+                random_str = hashlib.md5(text.encode()).hexdigest()[:4]
+                # 组合文件名: 时间戳_随机字符.wav
+                filename = f"{timestamp}_{random_str}.wav"
+                filepath = self.audio_dir / filename
+                
+                # 保存音频文件
+                with wave.open(str(filepath), 'wb') as wav_file:
                     wav_file.setnchannels(1)
                     wav_file.setsampwidth(2)
                     wav_file.setframerate(16000)
                     wav_file.writeframes(result.audio_data)
                 
-                self.mqtt_client.publish(f"voice/response/{client_id}", wav_stream.getvalue())
-                log(f"已发送语音回复")
+                # 生成URL (使用修改后的base_url)
+                audio_url = f"{self.base_url}/{filename}"
+                
+                # 发送URL给客户端
+                self.mqtt_client.publish(f"voice/response/{client_id}", audio_url)
+                log(f"已发送音频URL: {audio_url}")
                 
         except Exception as e:
             log(f"语音合成错误: {str(e)}")
@@ -167,7 +186,7 @@ class VoiceAIChatbot:
             self.stop_stream_recognition(client_id)
 
     def get_ai_response(self, message):
-        """获取AI回复"""
+        """��取AI回复"""
         try:
             response = self.ai_client.chat.completions.create(
                 model="anthropic/claude-3.5-haiku-20241022:beta",
