@@ -8,6 +8,7 @@ import tempfile
 from datetime import datetime
 import io
 import uuid  # 新增
+import requests  # 添加到文件开头的导入部分
 
 load_dotenv()
 
@@ -74,7 +75,7 @@ class AudioPlayer:
         self.channels = 1
         self.sample_width = 2
         self.sample_rate = 16000
-        self.chunk_size = 2048  # 增加缓冲区大小
+        self.chunk_size = 2048
         
         # 创建输出流
         self.create_stream()
@@ -107,7 +108,7 @@ class AudioPlayer:
                 if wf.getnchannels() != self.channels or \
                    wf.getsampwidth() != self.sample_width or \
                    wf.getframerate() != self.sample_rate:
-                    log(f"警告: 音频格式不匹配 (通道:{wf.getnchannels()}, 位宽:{wf.getsampwidth()}, 采样率:{wf.getframerate()})")
+                    log(f"警告: 音频格式不匹配 (通道:{wf.getnchannels()}, 位宽:{wf.getsampwidth()}, ��样率:{wf.getframerate()})")
                 
                 # 增加淡入淡出时长到25ms
                 fade_length = int(0.025 * self.sample_rate)
@@ -160,6 +161,20 @@ class AudioPlayer:
             self.stream.stop_stream()
             self.stream.close()
         self.p.terminate()
+    
+    def play_from_url(self, url):
+        """从URL下载并播放音频"""
+        try:
+            log(f"正在从URL下载音频: {url}")
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                # 将下载的数据转换为BytesIO对象
+                wav_data = io.BytesIO(response.content)
+                self.play_wav(wav_data)
+            else:
+                log(f"下载音频失败: HTTP {response.status_code}")
+        except Exception as e:
+            log(f"播放URL音频出错: {str(e)}")
 
 # 创建全局AudioPlayer实例
 audio_player = None
@@ -195,9 +210,10 @@ class VoiceClient:
     def on_message(self, client, userdata, msg):
         if msg.topic == f"voice/response/{self.client_id}":
             try:
-                log("收到语音回复，正在播放...")
-                wav_data = io.BytesIO(msg.payload)
-                self.audio_player.play_wav(wav_data)
+                # 现在收到的是URL字符串而不是音频数据
+                audio_url = msg.payload.decode('utf-8')
+                log(f"收到音频URL: {audio_url}")
+                self.audio_player.play_from_url(audio_url)
                 log("播放完成")
             except Exception as e:
                 log(f"播放音频出错: {str(e)}")
