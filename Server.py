@@ -189,9 +189,9 @@ class VoiceAIChatbot:
         """��取AI回复"""
         try:
             response = self.ai_client.chat.completions.create(
-                model="anthropic/claude-3.5-haiku-20241022:beta",
+                model="gemini-2.0-flash-exp",
                 messages=[
-                    {"role": "system", "content": "接下来你将扮演五星上将麦克阿瑟，为给定的主题提供幽默而略带荒谬的纪录片风格评论。评论的长度必须在30-50个汉字之间。"},
+                    {"role": "system", "content": "你是一个乐于助人的助手，回答在50字以内，避免使用星号冒号等特殊标点符号"},
                     {"role": "user", "content": message}
                 ],
                 timeout=10

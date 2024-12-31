@@ -19,6 +19,6 @@ if __name__ == "__main__":
     
     # 启动HTTP服务器
     port = 8080
-    httpd = HTTPServer(('localhost', port), CORSRequestHandler)
+    httpd = HTTPServer(('0.0.0.0', port), CORSRequestHandler)
     print(f"提供静态文件服务在 http://localhost:{port}")
     httpd.serve_forever() 
